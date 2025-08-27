@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "179032758580",
+    "firebase_url": "https://oca-database-2-default-rtdb.firebaseio.com",
+    "project_id": "oca-database-2",
+    "storage_bucket": "oca-database-2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:179032758580:android:36428ab92400fcebbbed61",
+        "android_client_info": {
+          "package_name": "com.app.tempocerto"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAdyMb5aNuXjxd98wlOe5x9U_MrLvE7_wg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:179032758580:android:819c7c0bf78b44d8bbed61",
+        "android_client_info": {
+          "package_name": "com.example.oca"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAdyMb5aNuXjxd98wlOe5x9U_MrLvE7_wg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
