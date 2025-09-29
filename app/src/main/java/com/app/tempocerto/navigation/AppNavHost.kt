@@ -7,6 +7,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.app.tempocerto.ui.screens.Home
+import com.app.tempocerto.ui.screens.login.LoginScreen
+import com.app.tempocerto.ui.screens.profile.ProfileScreen
 import com.app.tempocerto.ui.screens.ParameterSelectionScreen
 import com.app.tempocerto.ui.screens.graph.GraphScreen
 import com.app.tempocerto.ui.screens.list.ListScreen
@@ -15,8 +17,23 @@ import com.app.tempocerto.ui.screens.list.ListScreen
 fun AppNavHost(navController: NavHostController) {
     NavHost(
         navController = navController,
-        startDestination = "home"
+        startDestination = "login"
     ) {
+        composable(route = "login") {
+            LoginScreen(
+                onLoginSuccess = {
+                    navController.navigate("profile_screen") {
+                        popUpTo("login") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable(route = "profile_screen") {
+            ProfileScreen(navController = navController)
+        }
+
         composable(route = "home") {
             Home(navController = navController)
         }
@@ -46,15 +63,6 @@ fun AppNavHost(navController: NavHostController) {
             )
         ) {
             ListScreen(navController = navController)
-        }
-
-        composable(route = "profile_screen") {
-            navController.navigate("home") {
-                popUpTo(navController.graph.startDestinationId) {
-                    inclusive = true
-                }
-                launchSingleTop = true
-            }
         }
     }
 }

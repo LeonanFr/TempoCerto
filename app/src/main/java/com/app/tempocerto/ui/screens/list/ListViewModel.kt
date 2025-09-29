@@ -8,8 +8,8 @@ import com.app.tempocerto.data.model.SoureParameters
 import com.app.tempocerto.data.model.ListScreenUiState
 import com.app.tempocerto.data.model.CurucaLog
 import com.app.tempocerto.data.model.CurucaParameters
-import com.app.tempocerto.data.repository.DataResult
-import com.app.tempocerto.data.repository.MonitoringRepository
+import com.app.tempocerto.data.network.DataResult
+import com.app.tempocerto.data.network.MonitoringRepository
 import com.app.tempocerto.util.SubSystems
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow

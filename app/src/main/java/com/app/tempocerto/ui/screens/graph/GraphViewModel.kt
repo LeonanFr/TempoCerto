@@ -9,8 +9,8 @@ import com.app.tempocerto.data.model.SoureParameters
 import com.app.tempocerto.data.model.GraphScreenUiState
 import com.app.tempocerto.data.model.CurucaLog
 import com.app.tempocerto.data.model.CurucaParameters
-import com.app.tempocerto.data.repository.DataResult
-import com.app.tempocerto.data.repository.MonitoringRepository
+import com.app.tempocerto.data.network.DataResult
+import com.app.tempocerto.data.network.MonitoringRepository
 import com.app.tempocerto.util.SubSystems
 import com.github.mikephil.charting.data.Entry
 import dagger.hilt.android.lifecycle.HiltViewModel
