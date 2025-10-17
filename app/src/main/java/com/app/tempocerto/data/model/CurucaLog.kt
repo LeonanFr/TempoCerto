@@ -1,55 +1,42 @@
 package com.app.tempocerto.data.model
 
-import android.util.Log
 import java.time.LocalDate
-import java.time.LocalDateTime
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 data class CurucaLog(
-    val date: String = "",
-    val temperature: Float = 0f,
-    val salinity: Float = 0f,
-    val pressure: Float = 0f
+    val dateTime: ZonedDateTime? = null,
+    val temperature: Float? = null,
+    val salinity: Float? = null,
+    val pressure: Float? = null
 ) {
-
-    private val parsedDateTime: LocalDateTime? by lazy {
-        try {
-            if (date.isBlank()) {
-                null
-            } else {
-                LocalDateTime.parse(date, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-            }
-        } catch (e: Exception) {
-            Log.e("CurucaLog", "Falha CRÍTICA ao converter a string de data: '$date'", e)
-            null
-        }
-    }
-
     fun toMap(): Map<String, String> {
+        val notAvailable = "N/A"
         return mapOf(
-            "Temperatura" to "%.2f °C".format(temperature),
-            "Salinidade" to "%.2f PSU".format(salinity),
-            "Pressão" to "%.2f hPa".format(pressure)
+            "Temperatura" to (temperature?.let { "%.2f °C".format(it) } ?: notAvailable),
+            "Salinidade" to (salinity?.let { "%.2f PSU".format(it) } ?: notAvailable),
+            "Pressão" to (pressure?.let { "%.2f hPa".format(it) } ?: notAvailable)
         )
     }
 
     fun getLocalDate(): LocalDate? {
-        return parsedDateTime?.toLocalDate()
+        return dateTime?.toLocalDate()
     }
 
     fun getTime(): String {
-        return parsedDateTime?.format(DateTimeFormatter.ofPattern("HH:mm:ss")) ?: ""
+        return dateTime?.format(DateTimeFormatter.ofPattern("HH:mm:ss")) ?: "--:--:--"
     }
 
     fun getValue(parameter: CurucaParameters): String {
+        val notAvailable = "N/A"
         return when (parameter) {
-            CurucaParameters.Temperature -> "%.2f °C".format(temperature)
-            CurucaParameters.Salinity -> "%.2f PSU".format(salinity)
-            CurucaParameters.Pressure -> "%.2f hPa".format(pressure)
+            CurucaParameters.Temperature -> temperature?.let { "%.2f °C".format(it) } ?: notAvailable
+            CurucaParameters.Salinity -> salinity?.let { "%.2f PSU".format(it) } ?: notAvailable
+            CurucaParameters.Pressure -> pressure?.let { "%.2f hPa".format(it) } ?: notAvailable
         }
     }
 
-    fun getRawValue(parameter: CurucaParameters): Float {
+    fun getRawValue(parameter: CurucaParameters): Float? {
         return when (parameter) {
             CurucaParameters.Temperature -> temperature
             CurucaParameters.Salinity -> salinity

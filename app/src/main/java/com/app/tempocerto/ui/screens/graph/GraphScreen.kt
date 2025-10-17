@@ -2,11 +2,16 @@ package com.app.tempocerto.ui.screens.graph
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -14,10 +19,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
-import com.app.tempocerto.ui.components.BottomBar
+import com.app.tempocerto.ui.components.AppBottomBar
+import com.app.tempocerto.ui.components.BlobBackground
 import com.app.tempocerto.ui.components.ParameterChoiceDialog
 import com.app.tempocerto.ui.components.SearchModalBottomSheet
-import com.app.tempocerto.util.roboto
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
@@ -40,60 +45,80 @@ fun GraphScreen(
     var showParameterDialog by remember { mutableStateOf(false) }
     var showSearchModal by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("Gráficos") })
-        },
-        bottomBar = {
-            BottomAppBar(contentPadding = PaddingValues(0.dp)) {
-                BottomBar(
+    Box(modifier = Modifier.fillMaxSize()) {
+        BlobBackground()
+
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(uiState.selectedParameter?.toString() ?: "Gráficos") },
+                    actions = {
+                        IconButton(onClick = { showParameterDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Default.FilterList,
+                                contentDescription = "Selecionar Parâmetro"
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                )
+            },
+            bottomBar = {
+                AppBottomBar(
                     navController = navController,
                     onSearchClicked = { showSearchModal = true }
                 )
-            }
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 15.dp)
-        ) {
-            Text(
-                text = "Em ${uiState.selectedDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))}",
-                fontSize = 16.sp,
-                color = Color.Gray
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (uiState.isLoading) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+            },
+            containerColor = Color.Transparent
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 15.dp)) {
+                    DateNavigationHeader(
+                        date = uiState.selectedDate,
+                        isNextDayEnabled = uiState.canNavigateForward,
+                        adjustDate = { days -> viewModel.selectDate(uiState.selectedDate.plusDays(days)) }
+                    )
                 }
-            } else {
-                LineChartComponent(entries = uiState.chartEntries)
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                GraphActualParameter(
-                    parameterName = uiState.selectedParameter?.toString() ?: "Parâmetro",
-                    value = uiState.lastLogValue,
-                    time = uiState.lastLogTime
-                )
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(topStart = 40.dp, topEnd = 40.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 1.dp
+                ) {
+                    if (uiState.isLoading) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 15.dp, vertical = 24.dp)
+                        ) {
+                            LineChartComponent(
+                                entries = uiState.chartEntries,
+                                lineColor = MaterialTheme.colorScheme.primary,
+                                textColor = MaterialTheme.colorScheme.onSurface
+                            )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                            Spacer(modifier = Modifier.height(24.dp))
 
-                GraphButtonsSection(
-                    onShowParameterDialog = { showParameterDialog = true },
-                    adjustDate = { days -> viewModel.selectDate(uiState.selectedDate.plusDays(days)) },
-                    isNextDayEnabled = uiState.canNavigateForward,
-                    onNavigateToList = {
-                        uiState.selectedParameter?.let { param ->
-                            navController.navigate("list_screen/${viewModel.subSystem.name}/${param.name}")
+                            GraphActualParameter(
+                                parameterName = uiState.selectedParameter?.toString() ?: "Parâmetro",
+                                value = uiState.lastLogValue,
+                                time = uiState.lastLogTime
+                            )
                         }
                     }
-                )
+                }
             }
         }
 
@@ -122,7 +147,42 @@ fun GraphScreen(
 }
 
 @Composable
-private fun LineChartComponent(entries: List<Entry>) {
+private fun DateNavigationHeader(
+    date: LocalDate,
+    isNextDayEnabled: Boolean,
+    adjustDate: (Long) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        IconButton(onClick = { adjustDate(-1) }) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Dia anterior")
+        }
+
+        Text(
+            text = date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp
+        )
+
+        IconButton(onClick = { adjustDate(1) }, enabled = isNextDayEnabled) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = "Dia posterior",
+                tint = if (isNextDayEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun LineChartComponent(entries: List<Entry>, lineColor: Color, textColor: Color) {
+    val lineArgb = lineColor.toArgb()
+    val textArgb = textColor.toArgb()
+
     AndroidView(
         modifier = Modifier
             .fillMaxWidth()
@@ -149,12 +209,14 @@ private fun LineChartComponent(entries: List<Entry>) {
         },
         update = { chart ->
             val dataSet = LineDataSet(entries, "Dados").apply {
-                color = android.graphics.Color.BLUE
+                color = lineArgb
                 setDrawValues(false)
                 setDrawCircles(false)
                 lineWidth = 2f
             }
             chart.data = LineData(dataSet)
+            chart.axisLeft.textColor = textArgb
+            chart.xAxis.textColor = textArgb
             chart.invalidate()
         }
     )
@@ -166,71 +228,20 @@ private fun GraphActualParameter(
     value: String,
     time: String
 ) {
-    Column {
-        Text(parameterName, fontSize = 20.sp, color = Color.Gray)
-        Text(value, fontSize = 32.sp, fontWeight = FontWeight.Bold)
-        Text(time, fontSize = 16.sp, color = Color.Gray)
-    }
-}
-
-@Composable
-private fun GraphButtonsSection(
-    onShowParameterDialog: () -> Unit,
-    adjustDate: (Long) -> Unit,
-    isNextDayEnabled : Boolean,
-    onNavigateToList: () -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(bottom = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.Bottom)
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-
-        Button(onClick = onNavigateToList,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            shape = RoundedCornerShape(5.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF006D77)
-            )) {
-            Text("Ver em Lista", fontSize = 20.sp, fontFamily = roboto, fontWeight = FontWeight.Medium, color = Color.White)
-        }
-
-        OutlinedButton(onClick = onShowParameterDialog,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            shape = RoundedCornerShape(5.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.Transparent,
-            )) {
-            Text("Selecionar parâmetro", fontSize = 20.sp, fontFamily = roboto, fontWeight = FontWeight.Medium, color = Color.Black)
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ){
-            OutlinedButton(onClick = { adjustDate(-1) },
-                modifier = Modifier
-                    .height(50.dp),
-                shape = RoundedCornerShape(5.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF006D77)  ,
-                )) {
-                Text("Dia anterior", fontSize = 20.sp, fontFamily = roboto, fontWeight = FontWeight.Medium, color = Color.White)
-            }
-
-            OutlinedButton(onClick = { adjustDate(1) },
-                enabled = isNextDayEnabled,
-                modifier = Modifier
-                    .height(50.dp),
-                shape = RoundedCornerShape(5.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF006D77),
-                )) {
-                Text("Dia posterior", fontSize = 20.sp, fontFamily = roboto, fontWeight = FontWeight.Medium, color = Color.White)
-            }
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(parameterName, fontSize = 20.sp, color = Color.Gray)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(value, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(time, fontSize = 16.sp, color = Color.Gray)
         }
     }
 }

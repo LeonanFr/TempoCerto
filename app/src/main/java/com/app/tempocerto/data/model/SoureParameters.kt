@@ -1,17 +1,9 @@
 package com.app.tempocerto.data.model
 
 enum class SoureParameters {
-    AirHumidity,
-    AtmosphericPressure,
-    AirTemperature,
-    BatteryVoltage,
-    InternalTemperature,
-    Precipitation,
-    WindDirection,
-    WaterLevel,
-    WindSpeedMax,
-    WindSpeedMean,
-    WindSpeedMin,
+
+    AirHumidity, AtmosphericPressure, AirTemperature, Precipitation,
+    WindDirection, WaterLevel, WindSpeedMax, WindSpeedMean, WindSpeedMin,
     WaterTemperature;
 
     fun toListString(): String {
@@ -23,8 +15,6 @@ enum class SoureParameters {
             AirHumidity -> "Umidade do Ar"
             AtmosphericPressure -> "Pressão Atmosférica"
             AirTemperature -> "Temperatura do Ar"
-            BatteryVoltage -> "Tensão da Bateria"
-            InternalTemperature -> "Temperatura Interna"
             Precipitation -> "Precipitação"
             WindDirection -> "Direção do Vento"
             WaterLevel -> "Nível da Água"

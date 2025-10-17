@@ -1,90 +1,81 @@
 package com.app.tempocerto.data.model
 
 import java.time.LocalDate
-import java.time.LocalDateTime
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 data class SoureLog(
-    val dt: String = "",
-    val ah: Float = 0f,
-    val ap: Float = 0f,
-    val at: Float = 0f,
-    val bv: Float = 0f,
-    val it: Float = 0f,
-    val p: Float = 0f,
-    val wd: Int = 0,
-    val wl: Int = 0,
-    val wsma: Float = 0f,
-    val wsme: Float = 0f,
-    val wsmi: Float = 0f,
-    val wt: Float = 0f
+    val dateTime: ZonedDateTime? = null,
+    val airHumidity: Float? = null,
+    val airPressure: Float? = null,
+    val airTemperature: Float? = null,
+    val precipitation: Float? = null,
+    val windDirection: Int? = null,
+    val waterLevel: Int? = null,
+    val windSpeedMax: Float? = null,
+    val windSpeedMean: Float? = null,
+    val windSpeedMin: Float? = null,
+    val waterTemperature: Float? = null
 ) {
-    private val parsedDateTime: LocalDateTime? = try {
-        val formatter = DateTimeFormatter.ofPattern("d/M/yyyy H:m:s")
-        LocalDateTime.parse(dt, formatter)
-    } catch (_: Exception) {
-        null
-    }
-
     fun toMap(): Map<String, String> {
-        val locale = Locale.US
         return mapOf(
-            "Umidade do Ar" to "%.1f %%".format(locale, ah),
-            "Pressão Atmosférica" to "%.2f hPa".format(locale, ap),
-            "Temperatura do Ar" to "%.2f °C".format(locale, at),
-            "Nível da Água" to "$wl cm",
-            "Temperatura da Água" to "%.2f °C".format(locale, wt),
-            "Precipitação" to "%.1f mm".format(locale, p),
-            "Vento (Médio)" to "%.2f m/s".format(locale, wsme),
-            "Vento (Máximo)" to "%.2f m/s".format(locale, wsma),
-            "Direção do Vento" to "$wd °",
-            "Tensão da Bateria" to "%.2f V".format(locale, bv)
+            "Umidade do Ar" to getValue(SoureParameters.AirHumidity),
+            "Pressão Atmosférica" to getValue(SoureParameters.AtmosphericPressure),
+            "Temperatura do Ar" to getValue(SoureParameters.AirTemperature),
+            "Nível da Água" to getValue(SoureParameters.WaterLevel),
+            "Temperatura da Água" to getValue(SoureParameters.WaterTemperature),
+            "Precipitação" to getValue(SoureParameters.Precipitation),
+            "Vento (Médio)" to getValue(SoureParameters.WindSpeedMean),
+            "Vento (Máximo)" to getValue(SoureParameters.WindSpeedMax),
+            "Direção do Vento" to getValue(SoureParameters.WindDirection)
         )
     }
 
     fun getLocalDate(): LocalDate? {
-        return parsedDateTime?.toLocalDate()
+        return dateTime?.toLocalDate()
     }
 
     fun getTime(): String {
-        return parsedDateTime?.format(DateTimeFormatter.ofPattern("HH:mm:ss")) ?: ""
+        return dateTime?.format(DateTimeFormatter.ofPattern("HH:mm:ss")) ?: "--:--:--"
     }
 
-
-
-    fun getRawValue(parameter: SoureParameters): Float {
+    fun getRawValue(parameter: SoureParameters): Float? {
         return when (parameter) {
-            SoureParameters.AirHumidity -> ah
-            SoureParameters.AtmosphericPressure -> ap
-            SoureParameters.AirTemperature -> at
-            SoureParameters.BatteryVoltage -> bv
-            SoureParameters.InternalTemperature -> it
-            SoureParameters.Precipitation -> p
-            SoureParameters.WindDirection -> wd.toFloat()
-            SoureParameters.WaterLevel -> wl.toFloat()
-            SoureParameters.WindSpeedMax -> wsma
-            SoureParameters.WindSpeedMean -> wsme
-            SoureParameters.WindSpeedMin -> wsmi
-            SoureParameters.WaterTemperature -> wt
+            SoureParameters.AirHumidity -> airHumidity
+            SoureParameters.AtmosphericPressure -> airPressure
+            SoureParameters.AirTemperature -> airTemperature
+            SoureParameters.Precipitation -> precipitation
+            SoureParameters.WindDirection -> windDirection?.toFloat()
+            SoureParameters.WaterLevel -> waterLevel?.toFloat()
+            SoureParameters.WindSpeedMax -> windSpeedMax
+            SoureParameters.WindSpeedMean -> windSpeedMean
+            SoureParameters.WindSpeedMin -> windSpeedMin
+            SoureParameters.WaterTemperature -> waterTemperature
         }
     }
 
     fun getValue(parameter: SoureParameters): String {
+        val rawValue = getRawValue(parameter)
         val locale = Locale.US
+
+        when {
+            rawValue == null -> return "N/D"
+            rawValue < 0 -> return "Defeito"
+            rawValue == 0f -> return "Sem Coleta"
+        }
+
         return when (parameter) {
-            SoureParameters.AirHumidity -> "%.1f %%".format(locale, ah)
-            SoureParameters.AtmosphericPressure -> "%.2f hPa".format(locale, ap)
-            SoureParameters.AirTemperature -> "%.2f °C".format(locale, at)
-            SoureParameters.BatteryVoltage -> "%.2f V".format(locale, bv)
-            SoureParameters.InternalTemperature -> "%.2f °C".format(locale, it)
-            SoureParameters.Precipitation -> "%.1f mm".format(locale, p)
-            SoureParameters.WindDirection -> "$wd °"
-            SoureParameters.WaterLevel -> "$wl cm"
-            SoureParameters.WindSpeedMax -> "%.2f m/s".format(locale, wsma)
-            SoureParameters.WindSpeedMean -> "%.2f m/s".format(locale, wsme)
-            SoureParameters.WindSpeedMin -> "%.2f m/s".format(locale, wsmi)
-            SoureParameters.WaterTemperature -> "%.2f °C".format(locale, wt)
+            SoureParameters.AirHumidity -> "%.1f %%".format(locale, rawValue)
+            SoureParameters.AtmosphericPressure -> "%.2f hPa".format(locale, rawValue)
+            SoureParameters.AirTemperature -> "%.2f °C".format(locale, rawValue)
+            SoureParameters.Precipitation -> "%.1f mm".format(locale, rawValue)
+            SoureParameters.WindDirection -> "${rawValue.toInt()} °"
+            SoureParameters.WaterLevel -> "${rawValue.toInt()} cm"
+            SoureParameters.WindSpeedMax -> "%.2f m/s".format(locale, rawValue)
+            SoureParameters.WindSpeedMean -> "%.2f m/s".format(locale, rawValue)
+            SoureParameters.WindSpeedMin -> "%.2f m/s".format(locale, rawValue)
+            SoureParameters.WaterTemperature -> "%.2f °C".format(locale, rawValue)
         }
     }
 }

@@ -1,11 +1,13 @@
 package com.app.tempocerto.data.network
 
-import com.app.tempocerto.data.model.*
-import kotlinx.coroutines.delay
+import com.app.tempocerto.data.model.CurucaLog
+import com.app.tempocerto.data.model.SoureLog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import java.time.LocalDate
-import kotlin.random.Random
+import java.time.format.DateTimeFormatter
+import javax.inject.Inject
+import javax.inject.Singleton
 
 sealed class DataResult<out T> {
     object Loading : DataResult<Nothing>()
@@ -13,75 +15,73 @@ sealed class DataResult<out T> {
     data class Error(val message: String) : DataResult<Nothing>()
 }
 
-class MonitoringRepository {
+@Singleton
+class MonitoringRepository @Inject constructor(
+    private val apiService: ApiService
+) {
+    private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
-    fun getLastCurucaLog(): Flow<DataResult<CurucaLog>> = flow {
+    fun getLastSoureLog(): Flow<DataResult<SoureLog?>> = flow {
         emit(DataResult.Loading)
-        delay(300)
-        val lastLog = CurucaLog(
-            date = "${LocalDate.now()}T12:00:00",
-            temperature = Random.nextFloat() * 30,
-            salinity = Random.nextFloat() * 35,
-            pressure = 1013f
-        )
-        emit(DataResult.Success(lastLog))
-    }
-
-    fun getCurucaLogsForDate(date: LocalDate): Flow<DataResult<List<CurucaLog>>> = flow {
-        emit(DataResult.Loading)
-        delay(500)
-        val logs = (0..23).map { hour ->
-            CurucaLog(
-                date = "${date}T${hour.toString().padStart(2,'0')}:00:00",
-                temperature = Random.nextFloat() * 30,
-                salinity = Random.nextFloat() * 35,
-                pressure = 1010 + Random.nextFloat() * 10
-            )
+        try {
+            val apiDto = apiService.getLatestLog("soure")
+            emit(DataResult.Success(apiDto?.toSoureLog()))
+        } catch (e: Exception) {
+            emit(DataResult.Error(e.message ?: "Erro desconhecido"))
         }
-        emit(DataResult.Success(logs))
-    }
-
-    fun getLastSoureLog(): Flow<DataResult<SoureLog>> = flow {
-        emit(DataResult.Loading)
-        delay(300)
-        val lastLog = SoureLog(
-            dt = "${LocalDate.now().dayOfMonth}/${LocalDate.now().monthValue}/${LocalDate.now().year} 12:00:00",
-            ah = Random.nextFloat() * 100,
-            at = Random.nextFloat() * 35,
-            ap = 1010f + Random.nextFloat() * 10,
-            bv = 12f,
-            it = 25f,
-            p = Random.nextFloat() * 10,
-            wd = Random.nextInt(0, 360),
-            wl = Random.nextInt(50, 150),
-            wsma = Random.nextFloat() * 15,
-            wsme = Random.nextFloat() * 10,
-            wsmi = Random.nextFloat() * 5,
-            wt = Random.nextFloat() * 30
-        )
-        emit(DataResult.Success(lastLog))
     }
 
     fun getSoureLogsForDate(date: LocalDate): Flow<DataResult<List<SoureLog>>> = flow {
         emit(DataResult.Loading)
-        delay(500)
-        val logs = (0..23).map { hour ->
-            SoureLog(
-                dt = "${date.dayOfMonth}/${date.monthValue}/${date.year} ${hour}:00:00",
-                ah = Random.nextFloat() * 100,
-                at = Random.nextFloat() * 35,
-                ap = 1010f + Random.nextFloat() * 10,
-                bv = 12f,
-                it = 25f,
-                p = Random.nextFloat() * 10,
-                wd = Random.nextInt(0, 360),
-                wl = Random.nextInt(50, 150),
-                wsma = Random.nextFloat() * 15,
-                wsme = Random.nextFloat() * 10,
-                wsmi = Random.nextFloat() * 5,
-                wt = Random.nextFloat() * 30
-            )
+        try {
+            val dtoList = apiService.getLogsForDate("soure", date.format(dateFormatter))
+            emit(DataResult.Success(dtoList.map { it.toSoureLog() }))
+        } catch (e: Exception) {
+            emit(DataResult.Error(e.message ?: "Erro desconhecido"))
         }
-        emit(DataResult.Success(logs))
+    }
+
+    fun getSoureLogsForDateRange(startDate: LocalDate, endDate: LocalDate): Flow<DataResult<List<SoureLog>>> = flow {
+        emit(DataResult.Loading)
+        try {
+            val formattedStart = startDate.format(dateFormatter)
+            val formattedEnd = endDate.format(dateFormatter)
+            val dtoList = apiService.getLogsForDateRange("soure", formattedStart, formattedEnd)
+            emit(DataResult.Success(dtoList.map { it.toSoureLog() }))
+        } catch (e: Exception) {
+            emit(DataResult.Error(e.message ?: "Erro desconhecido"))
+        }
+    }
+
+    fun getLastCurucaLog(): Flow<DataResult<CurucaLog?>> = flow {
+        emit(DataResult.Loading)
+        try {
+            val apiDto = apiService.getLatestLog("curuca")
+            emit(DataResult.Success(apiDto?.toCurucaLog()))
+        } catch (e: Exception) {
+            emit(DataResult.Error(e.message ?: "Erro desconhecido"))
+        }
+    }
+
+    fun getCurucaLogsForDate(date: LocalDate): Flow<DataResult<List<CurucaLog>>> = flow {
+        emit(DataResult.Loading)
+        try {
+            val dtoList = apiService.getLogsForDate("curuca", date.format(dateFormatter))
+            emit(DataResult.Success(dtoList.map { it.toCurucaLog() }))
+        } catch (e: Exception) {
+            emit(DataResult.Error(e.message ?: "Erro desconhecido"))
+        }
+    }
+
+    fun getCurucaLogsForDateRange(startDate: LocalDate, endDate: LocalDate): Flow<DataResult<List<CurucaLog>>> = flow {
+        emit(DataResult.Loading)
+        try {
+            val formattedStart = startDate.format(dateFormatter)
+            val formattedEnd = endDate.format(dateFormatter)
+            val dtoList = apiService.getLogsForDateRange("curuca", formattedStart, formattedEnd)
+            emit(DataResult.Success(dtoList.map { it.toCurucaLog() }))
+        } catch (e: Exception) {
+            emit(DataResult.Error(e.message ?: "Erro desconhecido"))
+        }
     }
 }

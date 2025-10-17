@@ -1,87 +1,63 @@
 package com.app.tempocerto.ui.screens.profile
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.app.tempocerto.R
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
-import coil.compose.AsyncImage
-import com.app.tempocerto.R
-import com.app.tempocerto.data.model.Preferences
 import com.app.tempocerto.data.model.UserProfile
-import com.app.tempocerto.ui.theme.Teal
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     navController: NavHostController,
+    onLogout: () -> Unit,
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        viewModel.loadProfile()
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        "Profile",
-                        fontWeight = FontWeight.SemiBold
-                    )
-                },
+                title = { Text("Perfil", fontWeight = FontWeight.SemiBold) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFFF7F7F7))
             )
         },
@@ -94,19 +70,13 @@ fun ProfileScreen(
             contentAlignment = Alignment.Center
         ) {
             when (val state = uiState) {
-                is ProfileUiState.Idle -> {
-                    LaunchedEffect(Unit) {
-                        viewModel.loadProfile()
-                    }
-                    CircularProgressIndicator()
-                }
-                is ProfileUiState.Loading -> {
+                is ProfileUiState.Idle, is ProfileUiState.Loading -> {
                     CircularProgressIndicator()
                 }
                 is ProfileUiState.Error -> {
                     Text(
                         text = "Erro ao carregar perfil:\n${state.message}",
-                        color = Color.Red,
+                        color = MaterialTheme.colorScheme.error,
                         textAlign = TextAlign.Center,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(16.dp)
@@ -115,17 +85,12 @@ fun ProfileScreen(
                 is ProfileUiState.Loaded -> {
                     ProfileContent(
                         user = state.user,
-                        onProfileChange = { updatedUser ->
-                            viewModel.saveProfile(updatedUser)
-                        },
-                        onLogout = { /* TODO: Implement logout logic */ }
+                        snackbarHostState = snackbarHostState,
+                        onLogout = {
+                            viewModel.logout()
+                            onLogout()
+                        }
                     )
-                }
-                is ProfileUiState.Saved -> {
-                    LaunchedEffect(Unit) {
-                        viewModel.loadProfile()
-                    }
-                    CircularProgressIndicator()
                 }
             }
         }
@@ -135,9 +100,17 @@ fun ProfileScreen(
 @Composable
 private fun ProfileContent(
     user: UserProfile,
-    onProfileChange: (UserProfile) -> Unit,
+    snackbarHostState: SnackbarHostState,
     onLogout: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
+
+    val onComingSoonClick: () -> Unit = {
+        scope.launch {
+            snackbarHostState.showSnackbar("Funcionalidade em breve!")
+        }
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -147,108 +120,87 @@ private fun ProfileContent(
             Spacer(modifier = Modifier.height(16.dp))
             ProfileHeaderCard(
                 name = user.name,
-                username = "@${user.name.lowercase().replace(" ", "")}",
-                photoUrl = user.photoUrl,
-                onEditClick = { /* TODO: Navigate to edit profile screen */ }
+                username = user.username
             )
             Spacer(modifier = Modifier.height(32.dp))
         }
 
-        item { SectionTitle("Conta") }
+        item { SectionTitle("Informações da Conta") }
         item {
-            ProfileMenuItem(
-                icon = Icons.Default.AccountCircle,
-                title = "Minha Conta",
-                subtitle = "Visualize os detalhes da sua conta",
-                onClick = { /* TODO: Navigate */ }
+            ProfileInfoItem(
+                icon = Icons.Default.Person,
+                title = "Nome completo",
+                value = user.name
             )
         }
-        item { SectionTitle("Preferências de Dados") }
         item {
-            var isTideChecked by remember { mutableStateOf(user.preferences.tide) }
-            val tideIcon: ImageVector = ImageVector.vectorResource(id = R.drawable.ic_tide)
-
-            ProfileMenuItem(
-                icon = tideIcon,
-                title = "Dados de Maré",
-                onClick = {
-                    isTideChecked = !isTideChecked
-                    val updatedPreferences = user.preferences.copy(tide = isTideChecked)
-                    onProfileChange(user.copy(preferences = updatedPreferences))
-                }
-            ) {
-                Switch(checked = isTideChecked, onCheckedChange = {
-                    isTideChecked = it
-                    val updatedPreferences = user.preferences.copy(tide = it)
-                    onProfileChange(user.copy(preferences = updatedPreferences))
-                })
-            }
+            ProfileInfoItem(
+                icon = Icons.Default.AccountCircle,
+                title = "Nome de usuário",
+                value = user.username
+            )
         }
         item {
-            var isSalinityChecked by remember { mutableStateOf(user.preferences.salinity) }
-            val salinityIcon: ImageVector = ImageVector.vectorResource(id = R.drawable.ic_water)
-            ProfileMenuItem(
-                icon = salinityIcon,
-                title = "Dados de Salinidade",
-                onClick = {
-                    isSalinityChecked = !isSalinityChecked
-                    val updatedPreferences = user.preferences.copy(salinity = isSalinityChecked)
-                    onProfileChange(user.copy(preferences = updatedPreferences))
-                }
-            ) {
-                Switch(checked = isSalinityChecked, onCheckedChange = {
-                    isSalinityChecked = it
-                    val updatedPreferences = user.preferences.copy(salinity = it)
-                    onProfileChange(user.copy(preferences = updatedPreferences))
-                })
-            }
+            ProfileInfoItem(
+                icon = Icons.Default.Email,
+                title = "E-mail",
+                value = user.email
+            )
         }
 
         item { Spacer(modifier = Modifier.height(24.dp)) }
-        item { SectionTitle("Atividade") }
+        item { SectionTitle("Preferências") }
         item {
+
             ProfileMenuItem(
-                icon = Icons.Default.DateRange,
-                title = "Histórico de Consultas",
-                onClick = { /* TODO: Navigate */ }
-            )
+                iconRes = R.drawable.ic_water,
+                title = "Dados de Maré",
+                onClick = onComingSoonClick
+            ) {
+                Switch(checked = false, onCheckedChange = null, enabled = false)
+            }
         }
         item {
             ProfileMenuItem(
-                icon = Icons.AutoMirrored.Filled.List,
-                title = "Minhas Anotações",
-                onClick = { /* TODO: Navigate */ }
-            )
+                iconRes = R.drawable.ic_tide,
+                title = "Dados de Salinidade",
+                onClick = onComingSoonClick
+            ) {
+                Switch(checked = false, onCheckedChange = null, enabled = false)
+            }
+
         }
         item {
             ProfileMenuItem(
                 icon = Icons.Default.Warning,
                 title = "Gerenciar Alertas",
-                onClick = { /* TODO: Navigate */ }
+                onClick = onComingSoonClick
             )
         }
+
 
         item { Spacer(modifier = Modifier.height(24.dp)) }
         item { SectionTitle("Mais") }
         item {
             ProfileMenuItem(
-                icon = Icons.Default.Search,
-                title = "Ajuda & Suporte",
-                onClick = { /* TODO: Navigate */ }
+                icon = Icons.Default.Shield,
+                title = "Privacidade e Segurança",
+                onClick = onComingSoonClick
             )
         }
         item {
             ProfileMenuItem(
                 icon = Icons.Default.Info,
                 title = "Sobre o App",
-                onClick = { /* TODO: Navigate */ }
+                onClick = onComingSoonClick
             )
         }
         item {
             ProfileMenuItem(
-                icon = Icons.Default.Close,
+                icon = Icons.AutoMirrored.Filled.ExitToApp,
                 title = "Sair",
-                onClick = onLogout
+                onClick = onLogout,
+                color = MaterialTheme.colorScheme.error
             )
         }
         item {
@@ -263,21 +215,16 @@ private fun SectionTitle(title: String) {
         text = title,
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(bottom = 8.dp, top = 8.dp)
+        modifier = Modifier.padding(bottom = 8.dp, top = 16.dp)
     )
 }
 
 @Composable
-private fun ProfileHeaderCard(
-    name: String,
-    username: String,
-    photoUrl: String?,
-    onEditClick: () -> Unit
-) {
+private fun ProfileHeaderCard(name: String, username: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Teal)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
     ) {
         Row(
             modifier = Modifier
@@ -285,34 +232,33 @@ private fun ProfileHeaderCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
-                model = photoUrl,
-                placeholder = painterResource(R.drawable.person),
-                error = painterResource(R.drawable.person),
-                contentDescription = "Foto do usuário",
-                modifier = Modifier.size(50.dp).clip(CircleShape),
-                contentScale = ContentScale.Crop
-            )
+            Box(
+                modifier = Modifier
+                    .size(50.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Ícone de Perfil",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(30.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = name,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
                 )
                 Text(
-                    text = username,
-                    color = Color.LightGray,
+                    text = "@$username",
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
                     fontSize = 14.sp
-                )
-            }
-            IconButton(onClick = onEditClick) {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = "Editar Perfil",
-                    tint = Color.White
                 )
             }
         }
@@ -320,12 +266,44 @@ private fun ProfileHeaderCard(
 }
 
 @Composable
+private fun ProfileInfoItem(icon: ImageVector, title: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = title,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
 private fun ProfileMenuItem(
-    icon: ImageVector,
+    icon: ImageVector? = null,
+    @DrawableRes iconRes: Int? = null,
     title: String,
-    subtitle: String? = null,
     onClick: () -> Unit,
-    trailingContent: @Composable (() -> Unit)? = null
+    color: Color = MaterialTheme.colorScheme.onSurface,
+    trailingContent: (@Composable () -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
@@ -334,36 +312,32 @@ private fun ProfileMenuItem(
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(Color.White),
-            contentAlignment = Alignment.Center
-        ) {
+        if (icon != null) {
             Icon(
                 imageVector = icon,
                 contentDescription = title,
-                tint = Color(0xFF2C2B47),
-                modifier = Modifier.size(22.dp)
+                tint = color,
+                modifier = Modifier.size(24.dp)
+            )
+        } else if (iconRes != null) {
+            Icon(
+                painter = painterResource(id = iconRes),
+                contentDescription = title,
+                tint = color,
+                modifier = Modifier.size(24.dp)
             )
         }
+
         Spacer(modifier = Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp,
-                color = Color.DarkGray
-            )
-            if (subtitle != null) {
-                Text(
-                    text = subtitle,
-                    fontSize = 12.sp,
-                    color = Color.Gray
-                )
-            }
-        }
+
+        Text(
+            text = title,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 16.sp,
+            color = color,
+            modifier = Modifier.weight(1f)
+        )
+
         if (trailingContent != null) {
             trailingContent()
         } else {
@@ -372,26 +346,6 @@ private fun ProfileMenuItem(
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
                 tint = Color.Gray
-            )
-        }
-    }
-}
-
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-fun ProfileContentPreview() {
-    val sampleUser = UserProfile(
-        id = "123",
-        name = "Guilherme",
-        photoUrl = null,
-        preferences = Preferences(tide = true, salinity = false),
-    )
-    MaterialTheme {
-        Box(modifier = Modifier.padding(top = 36.dp, bottom = 16.dp)) {
-            ProfileContent(
-                user = sampleUser,
-                onProfileChange = {},
-                onLogout = {}
             )
         }
     }

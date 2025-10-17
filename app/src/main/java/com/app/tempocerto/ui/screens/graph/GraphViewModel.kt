@@ -1,14 +1,13 @@
 package com.app.tempocerto.ui.screens.graph
 
-import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.app.tempocerto.data.model.SoureLog
-import com.app.tempocerto.data.model.SoureParameters
-import com.app.tempocerto.data.model.GraphScreenUiState
 import com.app.tempocerto.data.model.CurucaLog
 import com.app.tempocerto.data.model.CurucaParameters
+import com.app.tempocerto.data.model.GraphScreenUiState
+import com.app.tempocerto.data.model.SoureLog
+import com.app.tempocerto.data.model.SoureParameters
 import com.app.tempocerto.data.network.DataResult
 import com.app.tempocerto.data.network.MonitoringRepository
 import com.app.tempocerto.util.SubSystems
@@ -21,9 +20,6 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 @HiltViewModel
@@ -80,8 +76,7 @@ class GraphViewModel @Inject constructor(
         repositoryCall.onEach { result ->
             when (result) {
                 is DataResult.Success -> {
-                    val lastLog = result.data
-                    val lastDate = when (lastLog) {
+                    val lastDate = when (val lastLog = result.data) {
                         is CurucaLog -> lastLog.getLocalDate()
                         is SoureLog -> lastLog.getLocalDate()
                         else -> null
@@ -95,11 +90,7 @@ class GraphViewModel @Inject constructor(
                             canNavigateForward = lastDate != null && initialDate.isBefore(lastDate)
                         )
                     }
-
-                    when (subSystem) {
-                        SubSystems.Curuca -> loadCurucaData(initialDate)
-                        SubSystems.Soure -> loadSoureData(initialDate)
-                    }
+                    loadDataForDate(initialDate)
                 }
                 is DataResult.Error -> {
                     _uiState.update { it.copy(isLoading = false, error = result.message) }
@@ -168,41 +159,33 @@ class GraphViewModel @Inject constructor(
 
     private fun mapCurucaToEntries(logs: List<CurucaLog>, parameter: CurucaParameters): List<Entry> {
         return logs
-            .filter { log -> log.getRawValue(parameter) != -10f }
+            .asSequence()
+            .filter { it.dateTime != null && it.getRawValue(parameter) != null }
             .mapNotNull { log ->
-                try {
-                    val date = log.getLocalDate()
-                    val time = log.getTime()
-                    if (date != null && time.isNotBlank()) {
-                        val localTime = java.time.LocalTime.parse(time, DateTimeFormatter.ofPattern("HH:mm:ss"))
-                        val dateTime = date.atTime(localTime)
-                        val timestamp = dateTime.toEpochSecond(ZoneOffset.UTC).toFloat()
-                        val value = log.getRawValue(parameter)
-                        Entry(timestamp, value)
-                    } else {
-                        null
-                    }
-                } catch (e: Exception) {
-                    Log.e("GraphViewModel", "Falha ao mapear entrada Curuca para o gráfico: ${log.date}", e)
+                val value = log.getRawValue(parameter)
+                if (log.dateTime != null && value != null && value > 0) {
+                    val timestamp = log.dateTime.toEpochSecond().toFloat()
+                    Entry(timestamp, value)
+                } else {
                     null
                 }
             }
+            .toList()
     }
 
     private fun mapSoureToEntries(logs: List<SoureLog>, parameter: SoureParameters): List<Entry> {
-        val formatter = DateTimeFormatter.ofPattern("d/M/yyyy H:m:s")
         return logs
-            .filter { log -> log.getRawValue(parameter) != -10f }
+            .asSequence()
+            .filter { it.dateTime != null && it.getRawValue(parameter) != null }
             .mapNotNull { log ->
-                try {
-                    val dateTime = LocalDateTime.parse(log.dt, formatter)
-                    val timestamp = dateTime.toEpochSecond(ZoneOffset.UTC).toFloat()
-                    val value = log.getRawValue(parameter)
+                val value = log.getRawValue(parameter)
+                if (log.dateTime != null && value != null && value > 0) {
+                    val timestamp = log.dateTime.toEpochSecond().toFloat()
                     Entry(timestamp, value)
-                } catch (e: Exception) {
-                    Log.e("GraphViewModel", "Falha ao converter data de Soure: '${log.dt}'", e)
+                } else {
                     null
                 }
             }
+            .toList()
     }
 }

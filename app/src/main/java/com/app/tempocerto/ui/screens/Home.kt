@@ -1,133 +1,134 @@
 package com.app.tempocerto.ui.screens
 
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import com.app.tempocerto.R
-import com.app.tempocerto.ui.components.BottomBar
+import com.app.tempocerto.ui.components.AppBottomBar
+import com.app.tempocerto.ui.components.BlobBackground
 import com.app.tempocerto.util.SubSystems
 import com.app.tempocerto.util.roboto
 
 data class Station(
     val name: String,
+    val icon: ImageVector,
     val color: Color,
     val route: String
 )
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Home(navController: NavHostController) {
     val stations = listOf(
         Station(
             name = "Curuçá",
+            icon = Icons.Default.WaterDrop,
             color = Color(0xFF006D77),
             route = "parameter_selection/${SubSystems.Curuca.name}"
         ),
         Station(
             name = "Soure",
+            icon = Icons.Outlined.Place,
             color = Color(0xFF264653),
             route = "parameter_selection/${SubSystems.Soure.name}"
         )
     )
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        stringResource(id = R.string.app_title),
-                        fontFamily = roboto,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        BlobBackground()
+
+        Scaffold(
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = {
+                        Text(
+                            "Estações",
+                            fontFamily = roboto,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent
                     )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
-            )
-        },
-        bottomBar = {
-            BottomAppBar(
-                contentPadding = PaddingValues(0.dp),
-                containerColor = Color.White.copy(alpha = 0.8f)
-            ) {
-                BottomBar(
-                    navController = navController,
-                    onSearchClicked = { },
-                    showSearchButton = false
                 )
-            }
-        },
-        containerColor = Color.Transparent
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.background_image),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.25f))
-            )
-
-            Column(
+            },
+            bottomBar = {
+                BottomAppBar(
+                    contentPadding = PaddingValues(0.dp),
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 4.dp
+                ) {
+                    AppBottomBar(navController = navController)
+                }
+            },
+            containerColor = Color.Transparent
+        ) { innerPadding ->
+            Surface(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .padding(horizontal = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                    .padding(top = 16.dp)
+                    .graphicsLayer {
+                        shape = RoundedCornerShape(topStart = 40.dp, topEnd = 40.dp)
+                        clip = true
+                    },
+                color = MaterialTheme.colorScheme.surface
             ) {
-                Spacer(modifier = Modifier.height(32.dp))
-
-                Text(
-                    text = "Estações de Monitoramento",
-                    fontFamily = roboto,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 24.sp,
-                    textAlign = TextAlign.Center,
-                    color = Color.White
-                )
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    verticalArrangement = Arrangement.spacedBy(24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp, vertical = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    items(stations) { station ->
-                        CircularStationCard(
-                            name = station.name,
-                            color = station.color
-                        ) {
-                            navController.navigate(station.route)
+                    Text(
+                        text = "Selecione a estação",
+                        fontFamily = roboto,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 22.sp,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        verticalArrangement = Arrangement.spacedBy(24.dp),
+                        horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    ) {
+                        items(stations) { station ->
+                            // 4. Usando o novo Card inspirado no "Game Selection"
+                            StationSelectionCard(
+                                name = station.name,
+                                icon = station.icon,
+                                color = station.color
+                            ) {
+                                navController.navigate(station.route)
+                            }
                         }
                     }
                 }
@@ -137,38 +138,47 @@ fun Home(navController: NavHostController) {
 }
 
 @Composable
-fun CircularStationCard(name: String, color: Color, onClick: () -> Unit) {
-    Column(
+fun StationSelectionCard(
+    name: String,
+    icon: ImageVector,
+    color: Color,
+    onClick: () -> Unit
+) {
+    Card(
         modifier = Modifier
+            .aspectRatio(1f)
             .clickable { onClick() },
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = color.copy(alpha = 0.1f)
+        ),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.3f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Box(
+        Column(
             modifier = Modifier
-                .size(120.dp)
-                .clip(CircleShape)
-                .background(color)
-                .clickable { onClick() },
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Icon(
-                Icons.Filled.Place,
+                imageVector = icon,
                 contentDescription = name,
-                tint = Color.White,
+                tint = color,
                 modifier = Modifier.size(50.dp)
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = name,
+                fontFamily = roboto,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = color,
+                textAlign = TextAlign.Center
+            )
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = name,
-            fontFamily = roboto,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            color = Color.White,
-            textAlign = TextAlign.Center
-        )
     }
 }
