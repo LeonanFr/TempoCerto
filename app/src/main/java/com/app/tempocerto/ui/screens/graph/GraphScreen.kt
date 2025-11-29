@@ -1,28 +1,35 @@
 package com.app.tempocerto.ui.screens.graph
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.app.tempocerto.ui.components.AppBottomBar
 import com.app.tempocerto.ui.components.BlobBackground
 import com.app.tempocerto.ui.components.ParameterChoiceDialog
 import com.app.tempocerto.ui.components.SearchModalBottomSheet
+import com.app.tempocerto.ui.theme.Teal
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
@@ -44,6 +51,14 @@ fun GraphScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showParameterDialog by remember { mutableStateOf(false) }
     var showSearchModal by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         BlobBackground()
@@ -93,29 +108,42 @@ fun GraphScreen(
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 1.dp
                 ) {
-                    if (uiState.isLoading) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
+                    when {
+                        uiState.isLoading -> {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
+                            }
                         }
-                    } else {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 15.dp, vertical = 24.dp)
-                        ) {
-                            LineChartComponent(
-                                entries = uiState.chartEntries,
-                                lineColor = MaterialTheme.colorScheme.primary,
-                                textColor = MaterialTheme.colorScheme.onSurface
+                        (uiState.error != null && uiState.error!!.contains("Restrito")) || uiState.isRestricted -> {
+                            RestrictedGraphAccessView(
+                                onRequestAccess = { days -> viewModel.requestAccessToData(days) }
                             )
+                        }
+                        uiState.error != null -> {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text(text = uiState.error ?: "Erro desconhecido", color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                        else -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 15.dp, vertical = 24.dp)
+                            ) {
+                                LineChartComponent(
+                                    entries = uiState.chartEntries,
+                                    lineColor = MaterialTheme.colorScheme.primary,
+                                    textColor = MaterialTheme.colorScheme.onSurface
+                                )
 
-                            Spacer(modifier = Modifier.height(24.dp))
+                                Spacer(modifier = Modifier.height(24.dp))
 
-                            GraphActualParameter(
-                                parameterName = uiState.selectedParameter?.toString() ?: "Parâmetro",
-                                value = uiState.lastLogValue,
-                                time = uiState.lastLogTime
-                            )
+                                GraphActualParameter(
+                                    parameterName = uiState.selectedParameter?.toString() ?: "Parâmetro",
+                                    value = uiState.lastLogValue,
+                                    time = uiState.lastLogTime
+                                )
+                            }
                         }
                     }
                 }
@@ -125,9 +153,14 @@ fun GraphScreen(
         if (showSearchModal) {
             SearchModalBottomSheet(
                 onDismiss = { showSearchModal = false },
-                onDateSelected = { date ->
-                    val parsedDate = LocalDate.parse(date, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                    viewModel.selectDate(parsedDate)
+                onApplySearch = { start, end ->
+                    val dateToUse = start ?: LocalDate.now()
+                    if (start != null && end != null) {
+                        viewModel.fetchLogsByDateRange(start, end)
+                    } else {
+                        viewModel.selectDate(dateToUse)
+                    }
+                    showSearchModal = false
                 }
             )
         }
@@ -142,6 +175,69 @@ fun GraphScreen(
                     showParameterDialog = false
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun RestrictedGraphAccessView(
+    onRequestAccess: (Int) -> Unit
+) {
+    var daysText by remember { mutableStateOf("30") }
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(24.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Lock,
+                contentDescription = "Bloqueado",
+                tint = Color.Gray,
+                modifier = Modifier.size(64.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Acesso Restrito",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = Teal
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Dados com mais de 7 dias requerem permissão especial.",
+                textAlign = TextAlign.Center,
+                color = Color.Gray,
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            OutlinedTextField(
+                value = daysText,
+                onValueChange = { if (it.all { char -> char.isDigit() }) daysText = it },
+                label = { Text("Dias desejados") },
+                singleLine = true,
+                modifier = Modifier.width(200.dp),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = {
+                    val days = daysText.toIntOrNull() ?: 30
+                    onRequestAccess(days)
+                },
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Teal)
+            ) {
+                Text("Solicitar Acesso")
+            }
         }
     }
 }
@@ -183,6 +279,10 @@ private fun LineChartComponent(entries: List<Entry>, lineColor: Color, textColor
     val lineArgb = lineColor.toArgb()
     val textArgb = textColor.toArgb()
 
+    val isMultiDay = remember(entries) {
+        if (entries.isEmpty()) false else (entries.last().x - entries.first().x) > 86400
+    }
+
     AndroidView(
         modifier = Modifier
             .fillMaxWidth()
@@ -201,23 +301,40 @@ private fun LineChartComponent(entries: List<Entry>, lineColor: Color, textColor
                     valueFormatter = object : ValueFormatter() {
                         private val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
                         override fun getFormattedValue(value: Float): String {
-                            return sdf.format(Date(value.toLong() * 1000))
+                            return try {
+                                sdf.format(Date(value.toLong() * 1000))
+                            } catch (_: Exception) { "" }
                         }
                     }
                 }
+                axisLeft.textColor = textArgb
             }
         },
         update = { chart ->
-            val dataSet = LineDataSet(entries, "Dados").apply {
-                color = lineArgb
-                setDrawValues(false)
-                setDrawCircles(false)
-                lineWidth = 2f
+            if (entries.isEmpty()) {
+                chart.clear()
+            } else {
+                val dataSet = LineDataSet(entries, "Dados").apply {
+                    color = lineArgb
+                    setDrawValues(false)
+                    setDrawCircles(false)
+                    lineWidth = 2f
+                }
+                chart.data = LineData(dataSet)
+
+                chart.xAxis.valueFormatter = object : ValueFormatter() {
+                    private val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+                    private val dateFormat = SimpleDateFormat("dd/MM", Locale.getDefault())
+                    override fun getFormattedValue(value: Float): String {
+                        return try {
+                            val date = Date(value.toLong() * 1000)
+                            if (isMultiDay) dateFormat.format(date) else timeFormat.format(date)
+                        } catch (_: Exception) { "" }
+                    }
+                }
+
+                chart.invalidate()
             }
-            chart.data = LineData(dataSet)
-            chart.axisLeft.textColor = textArgb
-            chart.xAxis.textColor = textArgb
-            chart.invalidate()
         }
     )
 }

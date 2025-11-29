@@ -13,12 +13,15 @@ import com.app.tempocerto.data.network.MonitoringRepository
 import com.app.tempocerto.util.SubSystems
 import com.github.mikephil.charting.data.Entry
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -31,12 +34,15 @@ class GraphViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(GraphScreenUiState())
     val uiState: StateFlow<GraphScreenUiState> = _uiState.asStateFlow()
 
+    private val _events = MutableSharedFlow<String>()
+    val events = _events.asSharedFlow()
+
     val subSystem: SubSystems
 
     init {
         val systemName: String = checkNotNull(savedStateHandle["subSystem"])
         val parameterName: String = checkNotNull(savedStateHandle["parameter"])
-        subSystem = enumValueOf(systemName)
+        subSystem = SubSystems.valueOf(systemName)
 
         setupInitialState(parameterName)
         loadInitialData()
@@ -46,6 +52,37 @@ class GraphViewModel @Inject constructor(
         val lastDate = _uiState.value.lastAvailableDate
         if (date.isAfter(lastDate ?: LocalDate.now())) return
         loadDataForDate(date)
+    }
+
+    fun fetchLogsByDateRange(startDate: LocalDate, endDate: LocalDate) {
+        _uiState.update {
+            it.copy(
+                selectedDate = startDate,
+                canNavigateForward = endDate.isBefore(LocalDate.now())
+            )
+        }
+        viewModelScope.launch {
+            if (subSystem == SubSystems.Soure) {
+                repository.getSoureLogsForDateRange(startDate, endDate).collect { result ->
+                    handleGraphResult(result) { data -> updateGraphDataSoure(data) }
+                }
+            } else {
+                repository.getCurucaLogsForDateRange(startDate, endDate).collect { result ->
+                    handleGraphResult(result) { data -> updateGraphDataCuruca(data) }
+                }
+            }
+        }
+    }
+
+    fun requestAccessToData(days: Int) {
+        viewModelScope.launch {
+            val result = repository.requestAccess(days)
+            if (result.isSuccess) {
+                _events.emit("Solicitação enviada com sucesso!")
+            } else {
+                _events.emit("Erro ao enviar solicitação")
+            }
+        }
     }
 
     fun selectParameter(parameter: Enum<*>) {
@@ -97,6 +134,9 @@ class GraphViewModel @Inject constructor(
                     loadDataForDate(LocalDate.now())
                 }
                 is DataResult.Loading -> {}
+                is DataResult.Restricted -> {
+                    _uiState.update { it.copy(isLoading = false, isRestricted = true) }
+                }
             }
         }.launchIn(viewModelScope)
     }
@@ -117,44 +157,63 @@ class GraphViewModel @Inject constructor(
 
     private fun loadCurucaData(date: LocalDate) {
         repository.getCurucaLogsForDate(date).onEach { result ->
-            when (result) {
-                is DataResult.Loading -> _uiState.update { it.copy(isLoading = true) }
-                is DataResult.Error -> _uiState.update { it.copy(isLoading = false, error = result.message) }
-                is DataResult.Success -> {
-                    val selectedParam = uiState.value.selectedParameter as? CurucaParameters ?: CurucaParameters.Temperature
-                    val entries = mapCurucaToEntries(result.data, selectedParam)
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            chartEntries = entries,
-                            lastLogValue = result.data.lastOrNull()?.getValue(selectedParam) ?: "--",
-                            lastLogTime = result.data.lastOrNull()?.getTime() ?: ""
-                        )
-                    }
-                }
-            }
+            handleGraphResult(result) { data -> updateGraphDataCuruca(data) }
         }.launchIn(viewModelScope)
     }
 
     private fun loadSoureData(date: LocalDate) {
         repository.getSoureLogsForDate(date).onEach { result ->
-            when (result) {
-                is DataResult.Loading -> _uiState.update { it.copy(isLoading = true) }
-                is DataResult.Error -> _uiState.update { it.copy(isLoading = false, error = result.message) }
-                is DataResult.Success -> {
-                    val selectedParam = uiState.value.selectedParameter as? SoureParameters ?: SoureParameters.AirTemperature
-                    val entries = mapSoureToEntries(result.data, selectedParam)
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            chartEntries = entries,
-                            lastLogValue = result.data.lastOrNull()?.getValue(selectedParam) ?: "--",
-                            lastLogTime = result.data.lastOrNull()?.getTime() ?: ""
-                        )
-                    }
-                }
-            }
+            handleGraphResult(result) { data -> updateGraphDataSoure(data) }
         }.launchIn(viewModelScope)
+    }
+
+    private fun updateGraphDataCuruca(data: List<CurucaLog>) {
+        val selectedParam = uiState.value.selectedParameter as? CurucaParameters ?: CurucaParameters.Temperature
+        val entries = mapCurucaToEntries(data, selectedParam)
+        _uiState.update {
+            it.copy(
+                chartEntries = entries,
+                lastLogValue = data.lastOrNull()?.getValue(selectedParam) ?: "--",
+                lastLogTime = data.lastOrNull()?.getTime() ?: ""
+            )
+        }
+    }
+
+    private fun updateGraphDataSoure(data: List<SoureLog>) {
+        val selectedParam = uiState.value.selectedParameter as? SoureParameters ?: SoureParameters.AirTemperature
+        val entries = mapSoureToEntries(data, selectedParam)
+        _uiState.update {
+            it.copy(
+                chartEntries = entries,
+                lastLogValue = data.lastOrNull()?.getValue(selectedParam) ?: "--",
+                lastLogTime = data.lastOrNull()?.getTime() ?: ""
+            )
+        }
+    }
+
+    private fun <T> handleGraphResult(result: DataResult<List<T>>, onSuccess: (List<T>) -> Unit) {
+        when (result) {
+            is DataResult.Loading -> _uiState.update {
+                it.copy(isLoading = true, error = null, isRestricted = false)
+            }
+            is DataResult.Error -> _uiState.update {
+                it.copy(isLoading = false, error = result.message, isRestricted = false)
+            }
+            is DataResult.Success -> {
+                _uiState.update { it.copy(isLoading = false, error = null, isRestricted = false) }
+                onSuccess(result.data)
+            }
+            is DataResult.Restricted -> _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    isRestricted = true,
+                    error = null,
+                    chartEntries = emptyList(),
+                    lastLogValue = "--",
+                    lastLogTime = ""
+                )
+            }
+        }
     }
 
     private fun mapCurucaToEntries(logs: List<CurucaLog>, parameter: CurucaParameters): List<Entry> {
@@ -166,9 +225,7 @@ class GraphViewModel @Inject constructor(
                 if (log.dateTime != null && value != null && value > 0) {
                     val timestamp = log.dateTime.toEpochSecond().toFloat()
                     Entry(timestamp, value)
-                } else {
-                    null
-                }
+                } else null
             }
             .toList()
     }
@@ -182,9 +239,7 @@ class GraphViewModel @Inject constructor(
                 if (log.dateTime != null && value != null && value > 0) {
                     val timestamp = log.dateTime.toEpochSecond().toFloat()
                     Entry(timestamp, value)
-                } else {
-                    null
-                }
+                } else null
             }
             .toList()
     }

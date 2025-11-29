@@ -1,9 +1,11 @@
 package com.app.tempocerto.data.network
 
+import com.app.tempocerto.data.model.AccessRequestBody
 import com.app.tempocerto.data.model.CurucaLog
 import com.app.tempocerto.data.model.SoureLog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import retrofit2.HttpException
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
@@ -13,6 +15,7 @@ sealed class DataResult<out T> {
     object Loading : DataResult<Nothing>()
     data class Success<T>(val data: T) : DataResult<T>()
     data class Error(val message: String) : DataResult<Nothing>()
+    object Restricted : DataResult<Nothing>()
 }
 
 @Singleton
@@ -36,8 +39,26 @@ class MonitoringRepository @Inject constructor(
         try {
             val dtoList = apiService.getLogsForDate("soure", date.format(dateFormatter))
             emit(DataResult.Success(dtoList.map { it.toSoureLog() }))
+        } catch (e: HttpException) {
+            if (e.code() == 403) emit(DataResult.Restricted)
+            else emit(DataResult.Error(e.message() ?: "Erro de conexão"))
         } catch (e: Exception) {
             emit(DataResult.Error(e.message ?: "Erro desconhecido"))
+        }
+    }
+
+    suspend fun requestAccess(days: Int): Result<Unit> {
+        return try {
+            val response = apiService.requestAccess(AccessRequestBody(days))
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else if (response.code() == 409) {
+                Result.failure(Exception("Já existe uma solicitação pendente."))
+            } else {
+                Result.failure(Exception("Erro ao solicitar: ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
@@ -48,6 +69,9 @@ class MonitoringRepository @Inject constructor(
             val formattedEnd = endDate.format(dateFormatter)
             val dtoList = apiService.getLogsForDateRange("soure", formattedStart, formattedEnd)
             emit(DataResult.Success(dtoList.map { it.toSoureLog() }))
+        } catch (e: HttpException) {
+            if (e.code() == 403) emit(DataResult.Restricted)
+            else emit(DataResult.Error(e.message() ?: "Erro de conexão"))
         } catch (e: Exception) {
             emit(DataResult.Error(e.message ?: "Erro desconhecido"))
         }
@@ -68,6 +92,9 @@ class MonitoringRepository @Inject constructor(
         try {
             val dtoList = apiService.getLogsForDate("curuca", date.format(dateFormatter))
             emit(DataResult.Success(dtoList.map { it.toCurucaLog() }))
+        } catch (e: HttpException) {
+            if (e.code() == 403) emit(DataResult.Restricted)
+            else emit(DataResult.Error(e.message() ?: "Erro de conexão"))
         } catch (e: Exception) {
             emit(DataResult.Error(e.message ?: "Erro desconhecido"))
         }
@@ -80,6 +107,9 @@ class MonitoringRepository @Inject constructor(
             val formattedEnd = endDate.format(dateFormatter)
             val dtoList = apiService.getLogsForDateRange("curuca", formattedStart, formattedEnd)
             emit(DataResult.Success(dtoList.map { it.toCurucaLog() }))
+        } catch (e: HttpException) {
+            if (e.code() == 403) emit(DataResult.Restricted)
+            else emit(DataResult.Error(e.message() ?: "Erro de conexão"))
         } catch (e: Exception) {
             emit(DataResult.Error(e.message ?: "Erro desconhecido"))
         }

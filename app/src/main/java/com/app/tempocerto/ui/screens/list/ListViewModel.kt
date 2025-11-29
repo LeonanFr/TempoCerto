@@ -12,39 +12,71 @@ import com.app.tempocerto.data.network.DataResult
 import com.app.tempocerto.data.network.MonitoringRepository
 import com.app.tempocerto.util.SubSystems
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import javax.inject.Inject
 
 @HiltViewModel
 class ListViewModel @Inject constructor(
     private val repository: MonitoringRepository,
-    private val savedStateHandle: SavedStateHandle
+    savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ListScreenUiState())
     val uiState: StateFlow<ListScreenUiState> = _uiState.asStateFlow()
 
+    private val _events = MutableSharedFlow<String>()
+    val events = _events.asSharedFlow()
+
     val subSystem: SubSystems
+
 
     init {
         val systemName: String = checkNotNull(savedStateHandle["subSystem"])
         val parameterName: String = checkNotNull(savedStateHandle["parameter"])
-        subSystem = enumValueOf(systemName)
+        subSystem = SubSystems.valueOf(systemName)
 
         setupInitialState(parameterName)
         loadInitialData()
+    }
+
+    fun requestAccessToData(days: Int) {
+        viewModelScope.launch {
+            val result = repository.requestAccess(days)
+            if (result.isSuccess) {
+                _events.emit("Solicitação enviada com sucesso!")
+            } else {
+                _events.emit("Erro ao enviar solicitação")
+            }
+        }
     }
 
     fun selectDate(date: LocalDate) {
         val lastDate = _uiState.value.lastAvailableDate
         if (date.isAfter(lastDate ?: LocalDate.now())) return
         loadDataForDate(date)
+    }
+
+    fun fetchLogsByDateRange(startDate: LocalDate, endDate: LocalDate) {
+        viewModelScope.launch {
+            if (subSystem == SubSystems.Soure) {
+                repository.getSoureLogsForDateRange(startDate, endDate).collect { result ->
+                    handleListResult(result)
+                }
+            } else {
+                repository.getCurucaLogsForDateRange(startDate, endDate).collect { result ->
+                    handleListResult(result)
+                }
+            }
+        }
     }
 
     fun selectParameter(parameter: Enum<*>) {
@@ -91,6 +123,9 @@ class ListViewModel @Inject constructor(
                 is DataResult.Error -> {
                     loadDataForDate(LocalDate.now())
                 }
+                is DataResult.Restricted -> {
+                    _uiState.update { it.copy(isRestricted = true) }
+                }
                 else -> {}
             }
         }.launchIn(viewModelScope)
@@ -112,40 +147,57 @@ class ListViewModel @Inject constructor(
 
     private fun loadCurucaData(date: LocalDate) {
         repository.getCurucaLogsForDate(date).onEach { result ->
-            when (result) {
-                is DataResult.Loading -> _uiState.update { it.copy(isLoading = true, sourceLogs = emptyList()) }
-                is DataResult.Error -> _uiState.update { it.copy(isLoading = false, error = result.message) }
-                is DataResult.Success -> {
-                    _uiState.update { it.copy(isLoading = false, sourceLogs = result.data) }
-                    mapSourceLogsToDailyLogs()
-                }
-            }
+            handleListResult(result)
         }.launchIn(viewModelScope)
     }
 
     private fun loadSoureData(date: LocalDate) {
         repository.getSoureLogsForDate(date).onEach { result ->
-            when (result) {
-                is DataResult.Loading -> _uiState.update { it.copy(isLoading = true, sourceLogs = emptyList()) }
-                is DataResult.Error -> _uiState.update { it.copy(isLoading = false, error = result.message) }
-                is DataResult.Success -> {
-                    _uiState.update { it.copy(isLoading = false, sourceLogs = result.data) }
-                    mapSourceLogsToDailyLogs()
-                }
-            }
+            handleListResult(result)
         }.launchIn(viewModelScope)
+    }
+
+    private fun <T> handleListResult(result: DataResult<List<T>>) {
+        when (result) {
+            is DataResult.Loading -> _uiState.update {
+                it.copy(isLoading = true, sourceLogs = emptyList(), isRestricted = false)
+            }
+            is DataResult.Error -> _uiState.update {
+                it.copy(isLoading = false, error = result.message, isRestricted = false)
+            }
+            is DataResult.Success -> {
+                _uiState.update {
+                    it.copy(isLoading = false, sourceLogs = result.data, isRestricted = false)
+                }
+                mapSourceLogsToDailyLogs()
+            }
+            is DataResult.Restricted -> _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    isRestricted = true,
+                    sourceLogs = emptyList(),
+                    dailyLogs = emptyList()
+                )
+            }
+        }
     }
 
     private fun mapSourceLogsToDailyLogs() {
         val selectedParam = _uiState.value.selectedParameter ?: return
         val sourceLogs = _uiState.value.sourceLogs
 
+        if (sourceLogs.isEmpty()) {
+            _uiState.update { it.copy(dailyLogs = emptyList()) }
+            return
+        }
+
         val mappedLogs = when (subSystem) {
             SubSystems.Curuca -> {
                 val param = selectedParam as CurucaParameters
                 _uiState.update { it.copy(listTitle = param.toListString()) }
-                (sourceLogs as List<CurucaLog>)
-                    .filter { log -> log.getRawValue(param) != -10f }
+                val logs = sourceLogs.mapNotNull { it as? CurucaLog }
+                logs
+                    .filter { log -> (log.getRawValue(param) ?: -10f) != -10f }
                     .map { log ->
                         Pair(log.getValue(param), log.getTime())
                     }
@@ -153,8 +205,9 @@ class ListViewModel @Inject constructor(
             SubSystems.Soure -> {
                 val param = selectedParam as SoureParameters
                 _uiState.update { it.copy(listTitle = param.toListString()) }
-                (sourceLogs as List<SoureLog>)
-                    .filter { log -> log.getRawValue(param) != -10f }
+                val logs = sourceLogs.mapNotNull { it as? SoureLog }
+                logs
+                    .filter { log -> (log.getRawValue(param) ?: -10f) != -10f }
                     .map { log ->
                         Pair(log.getValue(param), log.getTime())
                     }
@@ -203,6 +256,9 @@ class ListViewModel @Inject constructor(
                     _uiState.update { it.copy(lastLogData = errorMap) }
                 }
                 is DataResult.Loading -> {  }
+                is DataResult.Restricted -> {
+                    _uiState.update { it.copy(isRestricted = true) }
+                }
             }
         }.launchIn(viewModelScope)
     }

@@ -8,7 +8,9 @@ data class RegisterRequest(
     @field:Json(name = "email") val email: String,
     @field:Json(name = "password") val password: String
 )
-
+data class AccessRequestBody(
+    @field:Json(name = "days") val days: Int
+)
 data class LoginRequest(
     @field:Json(name = "username") val username: String,
     @field:Json(name = "password") val password: String

@@ -1,5 +1,6 @@
 package com.app.tempocerto.data.network
 
+import com.app.tempocerto.data.model.AccessRequestBody
 import com.app.tempocerto.data.model.LoginRequest
 import com.app.tempocerto.data.model.LoginResponse
 import com.app.tempocerto.data.model.RegisterRequest
@@ -35,6 +36,9 @@ interface ApiService {
 
     @POST("login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
+
+    @POST("request-access")
+    suspend fun requestAccess(@Body body: AccessRequestBody): Response<Unit>
 
     @GET("me")
     suspend fun getMe(): UserProfile

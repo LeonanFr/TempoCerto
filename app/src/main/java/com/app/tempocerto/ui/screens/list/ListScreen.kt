@@ -1,5 +1,6 @@
 package com.app.tempocerto.ui.screens.list
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -9,14 +10,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -27,6 +31,7 @@ import com.app.tempocerto.ui.components.AppBottomBar
 import com.app.tempocerto.ui.components.BlobBackground
 import com.app.tempocerto.ui.components.ParameterChoiceDialog
 import com.app.tempocerto.ui.components.SearchModalBottomSheet
+import com.app.tempocerto.ui.theme.Teal
 import com.app.tempocerto.util.roboto
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -40,6 +45,14 @@ fun ListScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showParameterDialog by remember { mutableStateOf(false) }
     var showSearchModal by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         BlobBackground()
@@ -96,15 +109,21 @@ fun ListScreen(
                     tonalElevation = 1.dp
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 15.dp, vertical = 24.dp)) {
-                        ListParameter(
-                            title = uiState.listTitle,
-                            date = uiState.selectedDate,
-                            logs = uiState.dailyLogs,
-                            isLoading = uiState.isLoading,
-                            error = uiState.error,
-                            isNextDayEnabled = uiState.canNavigateForward,
-                            adjustDate = { days -> viewModel.selectDate(uiState.selectedDate.plusDays(days)) }
-                        )
+                        if (uiState.isRestricted) {
+                            RestrictedAccessView(
+                                onRequestAccess = { days -> viewModel.requestAccessToData(days) }
+                            )
+                        } else {
+                            ListParameter(
+                                title = uiState.listTitle,
+                                date = uiState.selectedDate,
+                                logs = uiState.dailyLogs,
+                                isLoading = uiState.isLoading,
+                                error = uiState.error,
+                                isNextDayEnabled = uiState.canNavigateForward,
+                                adjustDate = { days -> viewModel.selectDate(uiState.selectedDate.plusDays(days)) }
+                            )
+                        }
                     }
                 }
             }
@@ -113,9 +132,13 @@ fun ListScreen(
         if (showSearchModal) {
             SearchModalBottomSheet(
                 onDismiss = { showSearchModal = false },
-                onDateSelected = { date ->
-                    val parsedDate = LocalDate.parse(date, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                    viewModel.selectDate(parsedDate)
+                onApplySearch = { start, end ->
+                    if (start != null && end != null) {
+                        viewModel.fetchLogsByDateRange(start, end)
+                    } else if (start != null) {
+                        viewModel.selectDate(start)
+                    }
+                    showSearchModal = false
                 }
             )
         }
@@ -241,7 +264,7 @@ private fun ListParameter(
         when {
             isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(error) }
-            logs.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Nenhum dado encontrado para este dia.") }
+            logs.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Nenhum dado encontrado.") }
             else -> {
                 LazyColumn {
                     items(logs) { logPair ->
@@ -253,6 +276,70 @@ private fun ListParameter(
                         HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f))
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RestrictedAccessView(
+    onRequestAccess: (Int) -> Unit
+) {
+    var daysText by remember { mutableStateOf("30") }
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(24.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Lock,
+                contentDescription = "Bloqueado",
+                tint = Color.Gray,
+                modifier = Modifier.size(64.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Acesso Restrito",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = Teal
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Dados antigos requerem permissão.",
+                textAlign = TextAlign.Center,
+                color = Color.Gray
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            OutlinedTextField(
+                value = daysText,
+                onValueChange = { if (it.all { char -> char.isDigit() }) daysText = it },
+                label = { Text("Dias de acesso desejados") },
+                singleLine = true,
+                modifier = Modifier.width(200.dp),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                )
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = {
+                    val days = daysText.toIntOrNull() ?: 7
+                    onRequestAccess(days)
+                },
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Teal)
+            ) {
+                Text("Solicitar Acesso")
             }
         }
     }

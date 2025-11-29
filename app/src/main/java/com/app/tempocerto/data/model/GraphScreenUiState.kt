@@ -6,6 +6,7 @@ import java.time.LocalDate
 data class GraphScreenUiState(
     val isLoading: Boolean = true,
     val error: String? = null,
+    val isRestricted: Boolean = false,
     val selectedDate: LocalDate = LocalDate.now(),
     val chartEntries: List<Entry> = emptyList(),
     val availableParameters: List<Enum<*>> = emptyList(),
