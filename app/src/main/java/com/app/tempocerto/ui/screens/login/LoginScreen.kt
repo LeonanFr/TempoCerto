@@ -31,6 +31,7 @@ import com.app.tempocerto.ui.theme.Teal
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
     onSignUpClicked: () -> Unit,
+    onForgotPasswordClicked: () -> Unit,
     viewModel: LoginViewModel = hiltViewModel()
 ) {
     var username by rememberSaveable { mutableStateOf("") }
@@ -66,7 +67,9 @@ fun LoginScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(24.dp),
+                        .padding(24.dp)
+                        .imePadding()
+                        .navigationBarsPadding(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
@@ -81,7 +84,7 @@ fun LoginScreen(
                         value = username,
                         onValueChange = { username = it },
                         label = { Text("Nome de usuário") },
-                        // MUDANÇA: Ícone de Pessoa
+
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
@@ -129,7 +132,7 @@ fun LoginScreen(
                             )
                             Text("Lembre de mim")
                         }
-                        TextButton(onClick = { /*TODO*/ }) {
+                        TextButton(onClick = { onForgotPasswordClicked() }) {
                             Text("Esqueceu a senha?", color = Teal)
                         }
                     }

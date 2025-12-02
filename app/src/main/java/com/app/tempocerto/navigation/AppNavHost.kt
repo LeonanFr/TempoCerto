@@ -11,8 +11,10 @@ import androidx.navigation.navigation
 import com.app.tempocerto.ui.screens.Home
 import com.app.tempocerto.ui.screens.ParameterSelectionScreen
 import com.app.tempocerto.ui.screens.SplashScreen
+import com.app.tempocerto.ui.screens.admin.AdminScreen
 import com.app.tempocerto.ui.screens.graph.GraphScreen
 import com.app.tempocerto.ui.screens.list.ListScreen
+import com.app.tempocerto.ui.screens.login.ForgotPasswordScreen
 import com.app.tempocerto.ui.screens.login.LoginScreen
 import com.app.tempocerto.ui.screens.profile.ProfileScreen
 import com.app.tempocerto.ui.screens.register.RegisterScreen
@@ -22,6 +24,8 @@ object Routes {
     const val SPLASH_ROUTE = "splash"
     const val AUTH_GRAPH_ROUTE = "auth_graph"
     const val MAIN_GRAPH_ROUTE = "main_graph"
+    const val FORGOT_PASSWORD_ROUTE = "forgot_password"
+    const val ADMIN_ROUTE = "admin_screen"
 }
 
 @Composable
@@ -44,6 +48,11 @@ fun AppNavHost(navController: NavHostController) {
                 }
             )
         }
+        composable(route = Routes.FORGOT_PASSWORD_ROUTE) {
+            ForgotPasswordScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
         authGraph(navController)
         mainGraph(navController)
     }
@@ -63,7 +72,8 @@ private fun NavGraphBuilder.authGraph(navController: NavHostController) {
                         popUpTo(Routes.AUTH_GRAPH_ROUTE) { inclusive = true }
                     }
                 },
-                onSignUpClicked = { navController.navigate("register") }
+                onSignUpClicked = { navController.navigate("register")},
+                onForgotPasswordClicked = { navController.navigate(Routes.FORGOT_PASSWORD_ROUTE) }
             )
         }
         composable(route = "register") {
@@ -86,14 +96,19 @@ private fun NavGraphBuilder.mainGraph(navController: NavHostController) {
         }
         composable(route = "profile_screen") {
             ProfileScreen(
-                navController = navController,
+                onNavigateBack = {navController.popBackStack()},
                 onLogout = {
                     navController.navigate(Routes.AUTH_GRAPH_ROUTE) {
                         popUpTo(Routes.MAIN_GRAPH_ROUTE) { inclusive = true }
                     }
-                }
+                },
+                onAdminClick = {navController.navigate(Routes.ADMIN_ROUTE)}
             )
         }
+        composable(route = Routes.ADMIN_ROUTE) {
+            AdminScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
         composable(
             route = "parameter_selection/{subSystem}",
             arguments = listOf(navArgument("subSystem") { type = NavType.StringType })

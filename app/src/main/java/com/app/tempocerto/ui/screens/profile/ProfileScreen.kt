@@ -8,12 +8,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
@@ -32,18 +34,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.app.tempocerto.R
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavHostController
+import com.app.tempocerto.R
 import com.app.tempocerto.data.model.UserProfile
+import com.app.tempocerto.ui.theme.Teal
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
-    navController: NavHostController,
+    onNavigateBack: () -> Unit,
     onLogout: () -> Unit,
+    onAdminClick: () -> Unit,
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -58,6 +61,14 @@ fun ProfileScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Perfil", fontWeight = FontWeight.SemiBold) },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Voltar"
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFFF7F7F7))
             )
         },
@@ -81,6 +92,9 @@ fun ProfileScreen(
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(16.dp)
                     )
+                    Button(onClick = { viewModel.loadProfile() }, modifier = Modifier.padding(top = 100.dp)) {
+                        Text("Tentar Novamente")
+                    }
                 }
                 is ProfileUiState.Loaded -> {
                     ProfileContent(
@@ -89,7 +103,8 @@ fun ProfileScreen(
                         onLogout = {
                             viewModel.logout()
                             onLogout()
-                        }
+                        },
+                        onAdminClick = onAdminClick
                     )
                 }
             }
@@ -101,7 +116,8 @@ fun ProfileScreen(
 private fun ProfileContent(
     user: UserProfile,
     snackbarHostState: SnackbarHostState,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onAdminClick: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
 
@@ -123,9 +139,21 @@ private fun ProfileContent(
                 username = user.username
             )
             Spacer(modifier = Modifier.height(32.dp))
+
+            if (user.role == "admin") {
+                Button(
+                    onClick = onAdminClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Teal)
+                ) {
+                    Text("Área Administrativa")
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
         }
 
         item { SectionTitle("Informações da Conta") }
+
         item {
             ProfileInfoItem(
                 icon = Icons.Default.Person,
@@ -133,6 +161,7 @@ private fun ProfileContent(
                 value = user.name
             )
         }
+
         item {
             ProfileInfoItem(
                 icon = Icons.Default.AccountCircle,
@@ -140,18 +169,30 @@ private fun ProfileContent(
                 value = user.username
             )
         }
-        item {
-            ProfileInfoItem(
-                icon = Icons.Default.Email,
-                title = "E-mail",
-                value = user.email
-            )
+
+        if (!user.email.isNullOrBlank()) {
+            item {
+                ProfileInfoItem(
+                    icon = Icons.Default.Email,
+                    title = "E-mail",
+                    value = user.email
+                )
+            }
+        }
+
+        if (!user.phone.isNullOrBlank()) {
+            item {
+                ProfileInfoItem(
+                    icon = Icons.Default.Phone,
+                    title = "Telefone",
+                    value = user.phone
+                )
+            }
         }
 
         item { Spacer(modifier = Modifier.height(24.dp)) }
         item { SectionTitle("Preferências") }
         item {
-
             ProfileMenuItem(
                 iconRes = R.drawable.ic_water,
                 title = "Dados de Maré",
@@ -168,7 +209,6 @@ private fun ProfileContent(
             ) {
                 Switch(checked = false, onCheckedChange = null, enabled = false)
             }
-
         }
         item {
             ProfileMenuItem(
@@ -177,7 +217,6 @@ private fun ProfileContent(
                 onClick = onComingSoonClick
             )
         }
-
 
         item { Spacer(modifier = Modifier.height(24.dp)) }
         item { SectionTitle("Mais") }
